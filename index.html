@@ -121,7 +121,7 @@
                         <label class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer hover:text-gray-900 transition-colors select-none">
                             <input type="checkbox" id="showDiffToggle" disabled class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 cursor-pointer w-4 h-4">
                             <span>Show Diff</span>
-                            <span id="diffBadge" class="hidden bg-yellow-300 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded-full font-bold shadow-sm">0</span>
+                            <span id="diffBadge" class="hidden bg-red-300 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded-full font-bold shadow-sm">0</span>
                         </label>
                         
                         <div class="w-px h-4 bg-gray-300"></div>
@@ -214,16 +214,61 @@
 
         // ตั้งค่า Input เริ่มต้น
         jsonInput.value = `{
-  "normal_float": 123.45,
-  "negative_float": -98.76,
-  "integer_value": 100,
-  "string_value": "45.67",
-  "nested_object": {
-    "deep_float": 0.001,
-    "time_msg": "Time is 12:30.45"
-  },
-  "array_of_floats": [1.11, 2.22],
-  "spaced_colon" :    55.55
+    "group1_numbers_match": {
+        "_description": "ทศนิยมเหล่านี้จะถูกจับและครอบด้วย Double Quote",
+        "standard_decimal": 10.50,
+        "negative_decimal": -5.25,
+        "zero_leading_decimal": 0.05,
+        "weird_spacing_decimal" :    3.14159   
+    },
+    "group2_numbers_not_match": {
+        "_description": "ตัวเลขที่ไม่เข้าเงื่อนไขทศนิยม",
+        "standard_integer": 30,
+        "negative_integer": -100,
+        "scientific_notation": 5.97e24
+    },
+    "group3_strings_and_fake_json_not_match": {
+        "_description": "ข้อความทั้งหมดรวมถึง JSON ที่ถูกแปลงเป็น String",
+        "normal_string": "Hello Bank World",
+        "string_with_decimal": "99.99",
+        "fake_json_object": "{\\"inner_value\\": 12.34, \\"status\\": true}",
+        "fake_json_array": "[1.1, 2.2, 3.3]",
+        "fake_json_mixed": "[{\\"id\\": 1, \\"score\\": 4.5}]"
+    },
+    "group4_booleans_and_null_not_match": {
+        "_description": "ค่าความจริงและค่าว่าง",
+        "boolean_true": true,
+        "boolean_false": false,
+        "null_value": null
+    },
+    "group5_arrays_not_match": {
+        "_description": "ข้อมูลใน Array จะไม่ถูกจับเพราะไม่มีเครื่องหมาย : นำหน้า",
+        "array_integers": [1, 2, 3],
+        "array_decimals": [13.75, 100.50, -5.55],
+        "array_mixed": ["text", true, null, 9.99, [1.1, 2.2]],
+        "array_of_objects": [
+            {
+                "id": 1,
+                "rate_MATCH": 1.25
+            },
+            {
+                "id": 2,
+                "rate_MATCH": 2.50
+            }
+        ]
+    },
+    "group6_nested_objects_mixed": {
+        "_description": "ออบเจกต์ซ้อนทับกัน",
+        "nested_level_1": {
+            "level1_string": "test data",
+            "level1_decimal_MATCH": 77.77,
+            "level1_array_NOT_MATCH": [8.88, 9.99],
+            "nested_level_2": {
+                "level2_decimal_MATCH": 123.456,
+                "level2_null_NOT_MATCH": null
+            }
+        }
+    }
 }`;
 
         // Helper Function หนีบ HTML (ป้องกัน XSS/UI พัง)
@@ -574,4 +619,3 @@
     </script>
 </body>
 </html>
-
