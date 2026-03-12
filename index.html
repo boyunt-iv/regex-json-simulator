@@ -513,7 +513,7 @@
                     
                     // 2. JSON Highlight (แปลง Marker เป็น HTML Tag สีเหลือง)
                     currentHighlightedHtml = escapeHtml(rawWithMarkers)
-                        .replace(/@@@_HL_START_@@@/g, '<mark class="bg-yellow-300 text-black px-1 rounded-sm font-bold shadow-sm">')
+                        .replace(/@@@_HL_START_@@@/g, '<mark class="bg-red-300 text-black px-1 rounded-sm font-bold shadow-sm">')
                         .replace(/@@@_HL_END_@@@/g, '</mark>');
 
                     // อัปเดต UI JSON
@@ -574,3 +574,4 @@
     </script>
 </body>
 </html>
+
