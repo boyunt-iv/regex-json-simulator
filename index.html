@@ -147,6 +147,38 @@
             </div>
 
         </div>
+
+        <!-- Summary Section (Footer) -->
+        <div id="summarySection" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col mb-10">
+            <div class="p-4 border-b border-gray-200 bg-gray-50 rounded-t-xl flex justify-between items-center">
+                <h2 class="font-semibold text-gray-700 flex items-center gap-2">
+                    <i data-lucide="bar-chart-2" class="w-[18px] h-[18px] text-purple-600"></i>
+                    Summary Change
+                </h2>
+                <span id="summaryTotalMatches" class="text-xs font-bold text-gray-500 bg-white px-2 py-1 rounded border border-gray-200 shadow-sm">Total: 0</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left text-gray-600">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-100 border-b border-gray-200">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 cursor-pointer hover:bg-gray-200 select-none transition-colors" onclick="handleSort('type')">
+                                <div class="flex items-center gap-1">Data Type <i id="sortIcon-type" data-lucide="arrow-up-down" class="w-3 h-3 text-gray-400"></i></div>
+                            </th>
+                            <th scope="col" class="px-6 py-3 cursor-pointer hover:bg-gray-200 select-none transition-colors" onclick="handleSort('value')">
+                                <div class="flex items-center gap-1">Value <i id="sortIcon-value" data-lucide="arrow-up-down" class="w-3 h-3 text-gray-400"></i></div>
+                            </th>
+                            <th scope="col" class="px-6 py-3 cursor-pointer hover:bg-gray-200 select-none transition-colors" onclick="handleSort('count')">
+                                <div class="flex items-center gap-1">Match Count <i id="sortIcon-count" data-lucide="arrow-up-down" class="w-3 h-3 text-gray-400"></i></div>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="summaryTableBody">
+                        <!-- Rows will be injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
     </div>
 
     <!-- JavaScript Logic -->
@@ -158,6 +190,9 @@
         let currentRawJsonString = null;     // JSON คลีนๆ สำหรับ Copy
         let currentNormalHtml = null;        // HTML สำหรับแสดงผลปกติ
         let currentHighlightedHtml = null;   // HTML สำหรับแสดงผลแบบ Highlight
+        let currentSummaryData = [];         // ข้อมูลสำหรับ Summary Table
+        let sortCol = 'count';               // คอลัมน์ที่ใช้ Sort เริ่มต้น
+        let sortDesc = true;                 // ทิศทางการ Sort เริ่มต้น
 
         // ดึง DOM Elements
         const patternInput = document.getElementById('patternInput');
@@ -173,6 +208,9 @@
         const jsonResultContainer = document.getElementById('jsonResultContainer');
         const showDiffToggle = document.getElementById('showDiffToggle');
         const diffBadge = document.getElementById('diffBadge');
+        const summarySection = document.getElementById('summarySection');
+        const summaryTableBody = document.getElementById('summaryTableBody');
+        const summaryTotalMatches = document.getElementById('summaryTotalMatches');
 
         // ตั้งค่า Input เริ่มต้น
         jsonInput.value = `{
@@ -210,6 +248,78 @@
 
         // เมื่อกด Checkbox Show Diff
         showDiffToggle.addEventListener('change', updateJsonView);
+
+        // ฟังก์ชันจัดการการคลิก Header ของตาราง Summary
+        window.handleSort = function(col) {
+            if (sortCol === col) {
+                sortDesc = !sortDesc; // เปลี่ยนทิศทางถ้ากดคอลัมน์เดิม
+            } else {
+                sortCol = col;
+                sortDesc = (col === 'count'); // ถ้าเป็น count ให้ตั้งต้นเป็นมากไปน้อย ส่วน text ให้น้อยไปมาก
+            }
+            renderSummaryTable();
+        };
+
+        // ฟังก์ชันเรนเดอร์ข้อมูลลงในตาราง Summary
+        function renderSummaryTable() {
+            if (!currentSummaryData || currentSummaryData.length === 0) {
+                summarySection.classList.add('hidden');
+                return;
+            }
+            
+            summarySection.classList.remove('hidden');
+            
+            // 1. จัดเรียงข้อมูล (Sort)
+            const sortedData = [...currentSummaryData].sort((a, b) => {
+                let valA = a[sortCol];
+                let valB = b[sortCol];
+                
+                if (sortCol === 'value' || sortCol === 'type') {
+                    valA = String(valA).toLowerCase();
+                    valB = String(valB).toLowerCase();
+                    if (valA < valB) return sortDesc ? 1 : -1;
+                    if (valA > valB) return sortDesc ? -1 : 1;
+                    return 0;
+                } else {
+                    return sortDesc ? valB - valA : valA - valB;
+                }
+            });
+
+            // 2. อัปเดตไอคอนลูกศรบนหัวตาราง
+            ['type', 'value', 'count'].forEach(col => {
+                const icon = document.getElementById(`sortIcon-${col}`);
+                if (icon) {
+                    if (sortCol === col) {
+                        icon.setAttribute('data-lucide', sortDesc ? 'arrow-down' : 'arrow-up');
+                        icon.classList.remove('text-gray-400');
+                        icon.classList.add('text-blue-600');
+                    } else {
+                        icon.setAttribute('data-lucide', 'arrow-up-down');
+                        icon.classList.remove('text-blue-600');
+                        icon.classList.add('text-gray-400');
+                    }
+                }
+            });
+
+            // 3. วาด Row ของตาราง
+            summaryTableBody.innerHTML = sortedData.map(row => `
+                <tr class="bg-white border-b hover:bg-gray-50 transition-colors">
+                    <td class="px-6 py-3 w-32">
+                        <span class="px-2 py-1 rounded text-[11px] font-bold uppercase tracking-wider ${row.type === 'numeric' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}">
+                            ${row.type}
+                        </span>
+                    </td>
+                    <td class="px-6 py-3 font-mono text-pink-600 font-medium whitespace-pre-wrap break-all">${escapeHtml(row.value)}</td>
+                    <td class="px-6 py-3 font-bold text-gray-700 w-32 text-center">${row.count}</td>
+                </tr>
+            `).join('');
+            
+            // รวมจำนวน Matches แบบ Unique และแบบทั้งหมด
+            const totalMatches = currentSummaryData.reduce((acc, curr) => acc + curr.count, 0);
+            summaryTotalMatches.textContent = `Total Matches: ${totalMatches} (Unique: ${currentSummaryData.length})`;
+            
+            lucide.createIcons(); // วาดไอคอนใหม่
+        }
 
         // ฟังก์ชันเมื่อกด Copy
         copyBtn.addEventListener('click', () => {
@@ -301,6 +411,23 @@
                             }
                             return m;
                         });
+
+                        // จัดกลุ่มสำหรับ Summary Table (Group By Value)
+                        const summaryMap = {};
+                        matches.forEach(m => {
+                            const val = m.capturedValue;
+                            if(!summaryMap[val]) {
+                                // เช็คว่าเป็นตัวเลขหรือไม่ (รวมเช็คว่าเป็นข้อความว่างๆ ไหมด้วย)
+                                const isNumeric = !isNaN(val) && !isNaN(parseFloat(val));
+                                summaryMap[val] = {
+                                    type: isNumeric ? 'numeric' : 'text',
+                                    value: val,
+                                    count: 0
+                                };
+                            }
+                            summaryMap[val].count += 1;
+                        });
+                        currentSummaryData = Object.values(summaryMap);
 
                         const modifiedParsed = JSON.parse(modifiedText);
 
@@ -406,12 +533,16 @@
                         showDiffToggle.checked = false;
                     }
 
+                    // สร้างตาราง Summary Table
+                    renderSummaryTable();
+
                     // ปลดล็อคปุ่ม Copy
                     copyBtn.disabled = false;
 
                 } catch (err) {
                     currentRawJsonString = null;
                     currentNormalHtml = null;
+                    currentSummaryData = []; // เคลียร์ตาราง
                     copyBtn.disabled = true;
                     showDiffToggle.disabled = true;
                     diffBadge.classList.add('hidden');
@@ -431,6 +562,7 @@
                             Error: ไม่สามารถแสดงผล JSON ได้เนื่องจาก Regex ผิดพลาด
                         </div>
                     `;
+                    summarySection.classList.add('hidden'); // ซ่อน Summary ถ้ามี Error
                 } finally {
                     runBtn.disabled = false;
                     runText.innerHTML = 'Run Regex';
