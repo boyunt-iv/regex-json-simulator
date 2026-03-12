@@ -47,7 +47,7 @@
                         type="text"
                         id="patternInput"
                         class="flex-1 p-3 font-mono text-sm text-pink-600 bg-transparent outline-none w-full"
-                        value=":(?=(?:[^&quot;]*&quot;[^&quot;]*&quot;)*[^&quot;]*$)\s*(-?\d+\.\d+)(?=[,}])"
+                        value=":(?=(?:[^&quot;]*&quot;[^&quot;]*&quot;)*[^&quot;]*\Z)\s*(-?\d+\.\d+)(?=\s*[,}\]])"
                         placeholder="พิมพ์ Regex Pattern ที่นี่..."
                         spellcheck="false"
                     />
@@ -115,14 +115,26 @@
                         <i data-lucide="code" class="w-[18px] h-[18px] text-blue-600"></i>
                         JSON Result
                     </h2>
-                    <button
-                        id="copyBtn"
-                        disabled
-                        class="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-blue-600 transition-colors bg-white px-2 py-1 rounded border border-gray-300 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        <i id="copyIcon" data-lucide="copy" class="w-[14px] h-[14px]"></i>
-                        <span id="copyText">Copy JSON</span>
-                    </button>
+                    
+                    <div class="flex items-center gap-3">
+                        <!-- Toggle Show Diff -->
+                        <label class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer hover:text-gray-900 transition-colors select-none">
+                            <input type="checkbox" id="showDiffToggle" disabled class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 cursor-pointer w-4 h-4">
+                            <span>Show Diff</span>
+                            <span id="diffBadge" class="hidden bg-yellow-300 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded-full font-bold shadow-sm">0</span>
+                        </label>
+                        
+                        <div class="w-px h-4 bg-gray-300"></div>
+
+                        <button
+                            id="copyBtn"
+                            disabled
+                            class="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-blue-600 transition-colors bg-white px-2 py-1 rounded border border-gray-300 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <i id="copyIcon" data-lucide="copy" class="w-[14px] h-[14px]"></i>
+                            <span id="copyText">Copy JSON</span>
+                        </button>
+                    </div>
                 </div>
                 
                 <div id="jsonResultContainer" class="flex-1 bg-gray-900 rounded-b-xl p-4 overflow-auto flex flex-col">
@@ -143,7 +155,9 @@
         lucide.createIcons();
 
         // ตัวแปรเก็บข้อมูล
-        let currentStructuredOutput = null;
+        let currentRawJsonString = null;     // JSON คลีนๆ สำหรับ Copy
+        let currentNormalHtml = null;        // HTML สำหรับแสดงผลปกติ
+        let currentHighlightedHtml = null;   // HTML สำหรับแสดงผลแบบ Highlight
 
         // ดึง DOM Elements
         const patternInput = document.getElementById('patternInput');
@@ -157,6 +171,8 @@
         const copyText = document.getElementById('copyText');
         const matchesContainer = document.getElementById('matchesContainer');
         const jsonResultContainer = document.getElementById('jsonResultContainer');
+        const showDiffToggle = document.getElementById('showDiffToggle');
+        const diffBadge = document.getElementById('diffBadge');
 
         // ตั้งค่า Input เริ่มต้น
         jsonInput.value = `{
@@ -182,18 +198,30 @@
                 .replace(/'/g, "&#039;");
         }
 
+        // ฟังก์ชันอัปเดตหน้าจอ JSON ตามสถานะ Checkbox
+        function updateJsonView() {
+            if (!currentNormalHtml) return;
+            if (showDiffToggle.checked) {
+                jsonResultContainer.innerHTML = `<pre class="text-green-400 font-mono text-sm leading-relaxed">${currentHighlightedHtml}</pre>`;
+            } else {
+                jsonResultContainer.innerHTML = `<pre class="text-green-400 font-mono text-sm leading-relaxed">${currentNormalHtml}</pre>`;
+            }
+        }
+
+        // เมื่อกด Checkbox Show Diff
+        showDiffToggle.addEventListener('change', updateJsonView);
+
         // ฟังก์ชันเมื่อกด Copy
         copyBtn.addEventListener('click', () => {
-            if (!currentStructuredOutput) return;
+            if (!currentRawJsonString) return;
             
             const textArea = document.createElement("textarea");
-            textArea.value = JSON.stringify(currentStructuredOutput, null, 2);
+            textArea.value = currentRawJsonString; // ใช้ก้อนที่ไม่มี HTML Highlight
             document.body.appendChild(textArea);
             textArea.select();
             
             try {
                 document.execCommand('copy');
-                // เปลี่ยนสถานะปุ่ม
                 copyIcon.setAttribute('data-lucide', 'check');
                 copyIcon.classList.add('text-green-600');
                 copyText.textContent = 'Copied!';
@@ -216,17 +244,14 @@
             const inputText = jsonInput.value;
             if (!inputText) return;
 
-            // เปลี่ยนปุ่มเป็นสถานะ Loading
             runBtn.disabled = true;
             runText.innerHTML = '<span class="animate-pulse">Processing...</span>';
             runIcon.style.display = 'none';
 
-            // ใช้ setTimeout เพื่อให้ UI ได้อัปเดตก่อนการประมวลผลหนัก
             setTimeout(() => {
                 try {
                     const rawPattern = patternInput.value;
-                    // แปลง \Z ของ Python/Java ให้เป็น $ ของ JavaScript อัตโนมัติ เพื่อความเข้ากันได้
-                    const pattern = rawPattern.replace(/\\Z/g, '$');
+                    const pattern = rawPattern.replace(/\\Z/g, '$'); // รองรับ Regex Python/Java
                     const flags = flagsInput.value;
                     const regex = new RegExp(pattern, flags);
                     
@@ -290,7 +315,9 @@
                                 return obj;
                             } else {
                                 if (typeof modNode === 'string' && modNode.includes(marker)) {
-                                    return modNode.replace(marker, "");
+                                    const extractedValue = modNode.replace(marker, "");
+                                    // ฝัง Marker ลับๆ ไว้สำหรับทำ Highlight ตอน Render UI
+                                    return `@@@_HL_START_@@@${extractedValue}@@@_HL_END_@@@`;
                                 }
                                 return origNode;
                             }
@@ -304,7 +331,7 @@
                             : { warning: "Input is not valid JSON or Regex broke the structure." };
                     }
 
-                    // --- Render ผลลัพธ์ (Matches Panel) ---
+                    // --- 3. Render ผลลัพธ์ (Matches Panel) ---
                     if (matches.length > 0) {
                         let html = `
                             <div class="space-y-4">
@@ -346,19 +373,48 @@
                         `;
                     }
 
-                    // --- Render ผลลัพธ์ (JSON Result Panel) ---
-                    currentStructuredOutput = structuredOutput;
-                    jsonResultContainer.innerHTML = `
-                        <pre class="text-green-400 font-mono text-sm leading-relaxed">${escapeHtml(JSON.stringify(structuredOutput, null, 2))}</pre>
-                    `;
+                    // --- 4. เตรียมข้อมูลสำหรับการแสดงผล JSON & Highlight ---
+                    const rawWithMarkers = JSON.stringify(structuredOutput, null, 2);
                     
+                    // นับจำนวน Diff ที่เปลี่ยน
+                    const diffMatches = rawWithMarkers.match(/@@@_HL_START_@@@/g);
+                    const diffCount = diffMatches ? diffMatches.length : 0;
+                    
+                    // 1. JSON ปกติ (ลบ Marker ออกให้หมด เพื่อเตรียมเอาไว้ Copy)
+                    currentRawJsonString = rawWithMarkers.replace(/@@@_HL_START_@@@|@@@_HL_END_@@@/g, "");
+                    currentNormalHtml = escapeHtml(currentRawJsonString);
+                    
+                    // 2. JSON Highlight (แปลง Marker เป็น HTML Tag สีเหลือง)
+                    currentHighlightedHtml = escapeHtml(rawWithMarkers)
+                        .replace(/@@@_HL_START_@@@/g, '<mark class="bg-yellow-300 text-black px-1 rounded-sm font-bold shadow-sm">')
+                        .replace(/@@@_HL_END_@@@/g, '</mark>');
+
+                    // อัปเดต UI JSON
+                    updateJsonView();
+                    
+                    // จัดการ Badge และ Checkbox Show Diff
+                    if (diffCount > 0) {
+                        diffBadge.textContent = diffCount;
+                        diffBadge.classList.remove('hidden');
+                        showDiffToggle.disabled = false;
+                        // เปิด Highlight ให้อัตโนมัติถ้ามีของเปลี่ยน (ถ้าต้องการให้ปิดเป็น default ให้ลบบรรทัดล่างออก)
+                        showDiffToggle.checked = true; 
+                        updateJsonView(); // เรียกซ้ำเพื่อ render ใหม่ตาม check
+                    } else {
+                        diffBadge.classList.add('hidden');
+                        showDiffToggle.disabled = true;
+                        showDiffToggle.checked = false;
+                    }
+
                     // ปลดล็อคปุ่ม Copy
                     copyBtn.disabled = false;
 
                 } catch (err) {
-                    // กรณี Error
-                    currentStructuredOutput = null;
+                    currentRawJsonString = null;
+                    currentNormalHtml = null;
                     copyBtn.disabled = true;
+                    showDiffToggle.disabled = true;
+                    diffBadge.classList.add('hidden');
                     
                     matchesContainer.innerHTML = `
                         <div class="bg-red-50 text-red-700 p-4 rounded-lg border border-red-200 flex items-start gap-3">
@@ -376,11 +432,10 @@
                         </div>
                     `;
                 } finally {
-                    // คืนค่าปุ่ม Run กลับเป็นปกติ
                     runBtn.disabled = false;
                     runText.innerHTML = 'Run Regex';
                     runIcon.style.display = 'inline-block';
-                    lucide.createIcons(); // Render ไอคอนที่ถูกสร้างใหม่ใน DOM
+                    lucide.createIcons();
                 }
             }, 50);
         });
